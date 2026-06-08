@@ -1,0 +1,16 @@
+name: Cron Sync
+on:
+  schedule:
+    - cron: '*/30 * * * *' # Every 30 minutes
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Sync API
+        run: |
+          # The SITE_URL should be your production URL (e.g., https://your-app.vercel.app)
+          # The CRON_SECRET must match the one set in your Vercel Environment Variables.
+          curl -f -X GET "${{ secrets.SITE_URL }}/api/sync" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
