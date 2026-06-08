@@ -12,7 +12,7 @@ export async function syncNowAction(): Promise<SyncSummary> {
     return {
       ok: false,
       decidedGroups: [],
-      knockoutCounts: { r16: 0, qf: 0, sf: 0, final: 0, champion: 0 },
+      knockoutCounts: { r32: 0, r16: 0, qf: 0, sf: 0, final: 0, champion: 0 },
       champion: null,
       unmatched: [],
       message: "Yetkisiz.",
@@ -28,7 +28,7 @@ export async function syncNowAction(): Promise<SyncSummary> {
     return {
       ok: false,
       decidedGroups: [],
-      knockoutCounts: { r16: 0, qf: 0, sf: 0, final: 0, champion: 0 },
+      knockoutCounts: { r32: 0, r16: 0, qf: 0, sf: 0, final: 0, champion: 0 },
       champion: null,
       unmatched: [],
       message: e instanceof Error ? e.message : "Senkronizasyon başarısız.",

@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { getSessionUser } from "@/lib/auth";
-import { getLeaderboard, getMyPrediction, getResults } from "@/lib/data";
-import { scorePrediction } from "@/lib/scoring";
+import {
+  getLeaderboard,
+  getMyRawPrediction,
+  getResults,
+  getTeams,
+  scoreRaw,
+} from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -30,21 +35,21 @@ export default async function HomePage() {
         </div>
         <div className="mt-12 grid gap-4 text-left sm:grid-cols-3">
           <div className="card">
-            <div className="text-2xl">📊</div>
+            <div className="text-sm font-bold text-emerald-400">01</div>
             <h3 className="mt-2 font-semibold">Grup sıralaması</h3>
             <p className="mt-1 text-sm text-white/60">
               Her grupta takımları 1’den 4’e sırala.
             </p>
           </div>
           <div className="card">
-            <div className="text-2xl">🏆</div>
+            <div className="text-sm font-bold text-emerald-400">02</div>
             <h3 className="mt-2 font-semibold">Eleme turları</h3>
             <p className="mt-1 text-sm text-white/60">
               Son 16’dan şampiyona kadar kimler geçecek seç.
             </p>
           </div>
           <div className="card">
-            <div className="text-2xl">⚡</div>
+            <div className="text-sm font-bold text-emerald-400">03</div>
             <h3 className="mt-2 font-semibold">Canlı puan</h3>
             <p className="mt-1 text-sm text-white/60">
               Sonuçlar girildikçe sıralama anında güncellenir.
@@ -55,18 +60,19 @@ export default async function HomePage() {
     );
   }
 
-  const [prediction, results, leaderboard] = await Promise.all([
-    getMyPrediction(user.id),
+  const [raw, results, leaderboard, teams] = await Promise.all([
+    getMyRawPrediction(user.id),
     getResults(),
     getLeaderboard(),
+    getTeams(),
   ]);
-  const score = scorePrediction(prediction, results);
+  const score = scoreRaw(raw, results, teams);
   const myRank =
     leaderboard.findIndex((r) => r.userId === user.id) + 1 || null;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Merhaba 👋</h1>
+      <h1 className="text-2xl font-bold">Merhaba</h1>
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="card">
           <div className="text-sm text-white/60">Toplam puanın</div>

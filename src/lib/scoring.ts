@@ -11,6 +11,7 @@ export const POINTS = {
   groupExactPosition: 3, // predicted team finishes in the exact group position
   groupAdvance: 1, // bonus: predicted team is in the top 2 (advances) regardless of exact slot
   knockout: {
+    r32: 1,
     r16: 2,
     qf: 4,
     sf: 7,

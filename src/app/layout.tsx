@@ -23,11 +23,14 @@ export default async function RootLayout({
         <header className="sticky top-0 z-10 border-b border-white/10 bg-pitchdark/80 backdrop-blur">
           <nav className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
             <Link href="/" className="text-lg font-bold tracking-tight">
-              ⚽ Kâhin
+              Kâhin
             </Link>
             <div className="flex flex-1 items-center gap-3 text-sm">
               <Link href="/predict" className="text-white/80 hover:text-white">
                 Tahminlerim
+              </Link>
+              <Link href="/matches" className="text-white/80 hover:text-white">
+                Maçlar
               </Link>
               <Link href="/leaderboard" className="text-white/80 hover:text-white">
                 Sıralama

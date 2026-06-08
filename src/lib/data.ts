@@ -1,6 +1,13 @@
 import { createClient } from "./supabase/server";
-import { scorePrediction } from "./scoring";
-import { emptyKnockout, type Prediction, type Team } from "./tournament";
+import { scorePrediction, type ScoreBreakdown } from "./scoring";
+import { reachedFromRaw } from "./bracket";
+import {
+  emptyReached,
+  type KnockoutKey,
+  type Prediction,
+  type RawPrediction,
+  type Team,
+} from "./tournament";
 
 export async function getTeams(): Promise<Team[]> {
   const supabase = createClient();
@@ -12,6 +19,10 @@ export async function getTeams(): Promise<Team[]> {
   return (data ?? []) as Team[];
 }
 
+export function teamMap(teams: Team[]): Map<string, Team> {
+  return new Map(teams.map((t) => [t.id, t]));
+}
+
 export async function getResults(): Promise<Prediction> {
   const supabase = createClient();
   const { data } = await supabase
@@ -21,7 +32,7 @@ export async function getResults(): Promise<Prediction> {
     .single();
   return {
     groups: (data?.groups ?? {}) as Prediction["groups"],
-    knockout: { ...emptyKnockout(), ...((data?.knockout ?? {}) as object) },
+    knockout: { ...emptyReached(), ...((data?.knockout ?? {}) as object) },
   };
 }
 
@@ -35,17 +46,41 @@ export async function isLocked(): Promise<boolean> {
   return Boolean(data?.locked);
 }
 
-export async function getMyPrediction(userId: string): Promise<Prediction> {
+// Any player's raw bracket prediction (groups + chosen thirds + match winners).
+export async function getRawPrediction(userId: string): Promise<RawPrediction> {
   const supabase = createClient();
   const { data } = await supabase
     .from("predictions")
     .select("groups, knockout")
     .eq("user_id", userId)
     .maybeSingle();
+  const ko = (data?.knockout ?? {}) as { thirds?: string[]; winners?: Record<string, string> };
   return {
-    groups: (data?.groups ?? {}) as Prediction["groups"],
-    knockout: { ...emptyKnockout(), ...((data?.knockout ?? {}) as object) },
+    groups: (data?.groups ?? {}) as RawPrediction["groups"],
+    thirds: ko.thirds ?? [],
+    winners: ko.winners ?? {},
   };
+}
+
+// Convenience alias for the signed-in user's own prediction.
+export const getMyRawPrediction = getRawPrediction;
+
+export async function getProfileName(userId: string): Promise<string | null> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", userId)
+    .maybeSingle();
+  return (data?.display_name as string) || null;
+}
+
+export function scoreRaw(
+  raw: RawPrediction,
+  results: Prediction,
+  teams: Team[],
+): ScoreBreakdown {
+  return scorePrediction(reachedFromRaw(raw, teamMap(teams)), results);
 }
 
 export type LeaderboardRow = {
@@ -53,38 +88,38 @@ export type LeaderboardRow = {
   name: string;
   total: number;
   groupPoints: number;
-  knockoutPoints: number;
+  rounds: Record<KnockoutKey, number>;
 };
 
 export async function getLeaderboard(): Promise<LeaderboardRow[]> {
   const supabase = createClient();
-  const [{ data: preds }, results, { data: profiles }] = await Promise.all([
+  const [{ data: preds }, results, { data: profiles }, teams] = await Promise.all([
     supabase.from("predictions").select("user_id, groups, knockout"),
     getResults(),
     supabase.from("profiles").select("id, display_name"),
+    getTeams(),
   ]);
 
+  const byId = teamMap(teams);
   const nameById = new Map<string, string>();
   for (const p of profiles ?? []) {
     nameById.set(p.id as string, (p.display_name as string) || "Anonim");
   }
 
   const rows: LeaderboardRow[] = (preds ?? []).map((p) => {
-    const prediction = {
-      groups: (p.groups ?? {}) as Prediction["groups"],
-      knockout: (p.knockout ?? {}) as Prediction["knockout"],
+    const ko = (p.knockout ?? {}) as { thirds?: string[]; winners?: Record<string, string> };
+    const raw: RawPrediction = {
+      groups: (p.groups ?? {}) as RawPrediction["groups"],
+      thirds: ko.thirds ?? [],
+      winners: ko.winners ?? {},
     };
-    const score = scorePrediction(prediction, results);
-    const knockoutPoints = Object.values(score.knockout).reduce(
-      (a, b) => a + b,
-      0,
-    );
+    const score = scorePrediction(reachedFromRaw(raw, byId), results);
     return {
       userId: p.user_id as string,
       name: nameById.get(p.user_id as string) ?? "Anonim",
       total: score.total,
       groupPoints: score.groupExact + score.groupAdvance,
-      knockoutPoints,
+      rounds: score.knockout,
     };
   });
 

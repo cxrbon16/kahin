@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
-import { getMyPrediction, getTeams, isLocked } from "@/lib/data";
+import { getMyRawPrediction, getTeams, isLocked } from "@/lib/data";
 import { PredictionEditor } from "@/components/PredictionEditor";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +12,9 @@ export default async function PredictPage() {
     redirect("/login");
   }
 
-  const [teams, prediction, locked] = await Promise.all([
+  const [teams, raw, locked] = await Promise.all([
     getTeams(),
-    getMyPrediction(user.id),
+    getMyRawPrediction(user.id),
     isLocked(),
   ]);
 
@@ -38,7 +38,7 @@ export default async function PredictPage() {
       <PredictionEditor
         userId={user.id}
         teams={teams}
-        initial={prediction}
+        initial={raw}
         locked={locked}
       />
     </div>

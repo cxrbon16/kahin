@@ -59,6 +59,7 @@ export function AdminResultsEditor({ teams, initial, locked: initialLocked }: Pr
   });
 
   const [knockout, setKnockout] = useState<Record<KnockoutKey, string[]>>(() => ({
+    r32: initial.knockout.r32 ?? [],
     r16: initial.knockout.r16 ?? [],
     qf: initial.knockout.qf ?? [],
     sf: initial.knockout.sf ?? [],

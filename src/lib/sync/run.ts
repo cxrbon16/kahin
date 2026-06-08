@@ -1,5 +1,5 @@
 import { createAdminClient } from "../supabase/admin";
-import { emptyKnockout, GROUP_CODES, type KnockoutKey, type Team } from "../tournament";
+import { emptyReached, GROUP_CODES, type KnockoutKey, type Team } from "../tournament";
 import { fetchMatches, fetchStandings, type FdTeam } from "./footballData";
 import { buildTeamResolver } from "./teamMap";
 
@@ -14,6 +14,8 @@ export type SyncSummary = {
 
 // Football-data stage -> the knockout round a participating team has "reached".
 const STAGE_TO_ROUND: Record<string, KnockoutKey> = {
+  LAST_32: "r32",
+  ROUND_OF_32: "r32",
   LAST_16: "r16",
   QUARTER_FINALS: "qf",
   QUARTER_FINAL: "qf",
@@ -69,6 +71,7 @@ export async function runSync(): Promise<SyncSummary> {
 
   // --- Knockout: a team that appears in a round's match has reached that round.
   const reached: Record<KnockoutKey, Set<string>> = {
+    r32: new Set(),
     r16: new Set(),
     qf: new Set(),
     sf: new Set(),
@@ -91,7 +94,8 @@ export async function runSync(): Promise<SyncSummary> {
     }
   }
 
-  const knockout = emptyKnockout();
+  const knockout = emptyReached();
+  knockout.r32 = [...reached.r32];
   knockout.r16 = [...reached.r16];
   knockout.qf = [...reached.qf];
   knockout.sf = [...reached.sf];
@@ -99,6 +103,7 @@ export async function runSync(): Promise<SyncSummary> {
   knockout.champion = [...reached.champion];
 
   const knockoutCounts = {
+    r32: knockout.r32.length,
     r16: knockout.r16.length,
     qf: knockout.qf.length,
     sf: knockout.sf.length,
