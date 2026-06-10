@@ -4,12 +4,25 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
+// Supabase auth is email-based, but we only want username + password. We map
+// each username to a synthetic, stable email under this domain. Nothing is
+// ever sent here — email confirmation must be OFF in Supabase Auth settings.
+const EMAIL_DOMAIN = "kahin.app";
+
+// usernames -> safe email local part: lowercase, only a-z 0-9 . _ -
+function usernameToEmail(username: string): string {
+  const local = username
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, "");
+  return `${local}@${EMAIL_DOMAIN}`;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">(
     "idle",
   );
@@ -17,36 +30,42 @@ export default function LoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setStatus("loading");
     setError("");
 
+    const clean = username.trim();
+    if (clean.replace(/[^a-z0-9._-]/gi, "").length < 3) {
+      setError("Kullanıcı adı en az 3 karakter olmalı (harf/rakam).");
+      setStatus("error");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Şifre en az 6 karakter olmalı.");
+      setStatus("error");
+      return;
+    }
+
+    setStatus("loading");
     const supabase = createClient();
+    const email = usernameToEmail(clean);
 
     if (mode === "signup") {
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          // Build the confirmation link from the origin the user is actually on,
-          // so the email never points at localhost in production.
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data: {
-            display_name: displayName || email.split("@")[0],
-          },
+          data: { display_name: clean },
         },
       });
 
       if (error) {
-        setError(error.message);
+        setError(translate(error.message));
         setStatus("error");
-      } else {
-        setStatus("success");
-        // For password signup, if email confirmation is OFF, they are logged in.
-        // If ON, they need to check email.
-        setTimeout(() => {
-          if (!error) router.push("/");
-        }, 1500);
+        return;
       }
+      // Email confirmation is OFF, so the user is signed in immediately.
+      setStatus("success");
+      router.push("/");
+      router.refresh();
     } else {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -54,12 +73,12 @@ export default function LoginPage() {
       });
 
       if (error) {
-        setError(error.message);
+        setError(translate(error.message));
         setStatus("error");
-      } else {
-        router.push("/");
-        router.refresh();
+        return;
       }
+      router.push("/");
+      router.refresh();
     }
   }
 
@@ -70,37 +89,23 @@ export default function LoginPage() {
       </h1>
       <p className="mb-6 text-sm text-white/60">
         {mode === "login"
-          ? "Hesabına erişmek için bilgilerini gir."
-          : "Tahmin ligine katılmak için hesap oluştur."}
+          ? "Kullanıcı adın ve şifrenle giriş yap."
+          : "Tahmin ligine katılmak için kullanıcı adı ve şifre seç."}
       </p>
 
       <form onSubmit={handleSubmit} className="card space-y-4">
-        {mode === "signup" && (
-          <div>
-            <label className="mb-1 block text-xs font-medium text-white/50 uppercase tracking-wider">
-              Görüntülenecek Ad (Kullanıcı Adı)
-            </label>
-            <input
-              type="text"
-              placeholder="Örn: KralTahminci"
-              className="input w-full"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-            />
-          </div>
-        )}
-
         <div>
           <label className="mb-1 block text-xs font-medium text-white/50 uppercase tracking-wider">
-            E-posta
+            Kullanıcı adı
           </label>
           <input
-            type="email"
+            type="text"
             required
-            placeholder="seninadin@example.com"
+            autoComplete="username"
+            placeholder="Örn: KralTahminci"
             className="input w-full"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
           />
         </div>
 
@@ -111,6 +116,7 @@ export default function LoginPage() {
           <input
             type="password"
             required
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
             placeholder="••••••••"
             className="input w-full"
             value={password}
@@ -131,11 +137,6 @@ export default function LoginPage() {
         </button>
 
         {error && <p className="text-sm text-red-400 text-center">{error}</p>}
-        {status === "success" && mode === "signup" && (
-          <p className="text-sm text-emerald-400 text-center">
-            Kayıt başarılı! Yönlendiriliyorsunuz...
-          </p>
-        )}
 
         <div className="pt-2 text-center text-sm">
           <button
@@ -143,6 +144,7 @@ export default function LoginPage() {
             onClick={() => {
               setMode(mode === "login" ? "signup" : "login");
               setError("");
+              setStatus("idle");
             }}
             className="text-white/60 hover:text-white underline underline-offset-4"
           >
@@ -154,4 +156,14 @@ export default function LoginPage() {
       </form>
     </div>
   );
+}
+
+// Friendlier Turkish messages for the common Supabase auth errors.
+function translate(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes("invalid login")) return "Kullanıcı adı veya şifre hatalı.";
+  if (m.includes("already registered") || m.includes("already been registered"))
+    return "Bu kullanıcı adı zaten alınmış.";
+  if (m.includes("password")) return "Şifre en az 6 karakter olmalı.";
+  return message;
 }
