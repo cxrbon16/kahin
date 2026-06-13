@@ -7,6 +7,7 @@ import {
   scoreRaw,
 } from "@/lib/data";
 import { GroupStandingsView } from "@/components/GroupStandingsView";
+import { KnockoutBreakdown } from "@/components/KnockoutBreakdown";
 import { BracketTree } from "@/components/BracketTree";
 import { KNOCKOUT_ROUNDS } from "@/lib/tournament";
 
@@ -56,9 +57,36 @@ export default async function PlayerPage({
             ))}
           </div>
 
+          {/* Colour legend for the annotated breakdown below */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-white/60">
+            <span className="font-medium text-white/70">Renkler:</span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded bg-emerald-400" /> puan aldı
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded bg-rose-400/80" /> puan yok
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded bg-white/15" /> henüz belli değil
+            </span>
+          </div>
+
           <section>
             <h2 className="mb-3 text-xl font-bold">Grup sıralamaları</h2>
-            <GroupStandingsView groups={raw.groups} teams={teams} />
+            <GroupStandingsView
+              groups={raw.groups}
+              teams={teams}
+              results={results.groups}
+            />
+          </section>
+
+          <section>
+            <h2 className="mb-3 text-xl font-bold">Eleme turları — puan kırılımı</h2>
+            <p className="mb-3 text-sm text-white/50">
+              Her turda oyuncunun o aşamaya taşıdığı takımlar ve gerçekten
+              ulaşıp ulaşmadıkları.
+            </p>
+            <KnockoutBreakdown raw={raw} results={results} teams={teams} />
           </section>
 
           <section>
