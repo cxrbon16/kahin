@@ -17,6 +17,7 @@ export type SyncSummary = {
     maxPlayed: number; // highest playedGames on any row
     matches: number; // total matches returned
     matchesByStatus: Record<string, number>;
+    groupDiag?: Record<string, unknown>; // per-started-group resolution detail
   };
 };
 
@@ -81,6 +82,7 @@ export async function runSync(): Promise<SyncSummary> {
   // group has kicked off, so points accrue live as matches are played. The
   // order finalises once all three matchdays are complete.
   const groups: Record<string, string[]> = {};
+  const groupDiag: Record<string, unknown> = {};
   for (const s of standings) {
     if (s.type !== "TOTAL" || !s.group) continue;
     const code = s.group.replace(/^GROUP_/, "").toUpperCase();
@@ -90,9 +92,15 @@ export async function runSync(): Promise<SyncSummary> {
       s.table.length === 4 && s.table.some((r) => r.playedGames > 0);
     if (!started) continue;
 
-    const ordered = [...s.table]
-      .sort((a, b) => a.position - b.position)
-      .map((r) => resolveOrTrack(r.team))
+    const sorted = [...s.table].sort((a, b) => a.position - b.position);
+    const resolvedRows = sorted.map((r) => {
+      const id = resolveOrTrack(r.team);
+      return { tla: r.team.tla, name: r.team.name, id, dbGroup: id ? groupByTeam.get(id) ?? null : null };
+    });
+    groupDiag[code] = resolvedRows;
+
+    const ordered = resolvedRows
+      .map((r) => r.id)
       .filter((id): id is string => Boolean(id) && groupByTeam.get(id!) === code);
     if (ordered.length === 4) groups[code] = ordered;
   }
@@ -152,6 +160,6 @@ export async function runSync(): Promise<SyncSummary> {
     knockoutCounts,
     champion: knockout.champion[0] ?? null,
     unmatched: [...unmatched].sort(),
-    debug,
+    debug: { ...debug, groupDiag },
   };
 }
