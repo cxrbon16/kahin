@@ -17,6 +17,7 @@ export type SyncSummary = {
     maxPlayed: number; // highest playedGames on any row
     matches: number; // total matches returned
     matchesByStatus: Record<string, number>;
+    rawTables?: unknown; // raw per-group standings dump
     groupDiag?: Record<string, unknown>; // per-started-group resolution detail
   };
 };
@@ -76,6 +77,19 @@ export async function runSync(): Promise<SyncSummary> {
       acc[m.status] = (acc[m.status] ?? 0) + 1;
       return acc;
     }, {}),
+    // Raw dump of every TOTAL+group standings table, no filtering, so we can
+    // see exactly what the provider sends (group label, normalized code,
+    // played games per row).
+    rawTables: groupTablesSeen.map((s) => ({
+      group: s.group,
+      code: (s.group ?? "").replace(/^GROUP_/, "").toUpperCase(),
+      inCodes: GROUP_CODES.includes(
+        ((s.group ?? "").replace(/^GROUP_/, "").toUpperCase()) as (typeof GROUP_CODES)[number],
+      ),
+      len: s.table.length,
+      played: s.table.map((r) => r.playedGames),
+      teams: s.table.map((r) => r.team?.tla ?? r.team?.name ?? "?"),
+    })),
   };
 
   // --- Group standings: emit the CURRENT (provisional) order as soon as a
