@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getSessionUser } from "@/lib/auth";
+import { ScoringInfo } from "@/components/ScoringInfo";
 import {
   getLeaderboard,
   getMyRawPrediction,
@@ -56,6 +57,9 @@ export default async function HomePage() {
             </p>
           </div>
         </div>
+        <div className="mt-12 text-left">
+          <ScoringInfo />
+        </div>
       </div>
     );
   }
@@ -110,6 +114,7 @@ export default async function HomePage() {
           Sıralamaya git
         </Link>
       </div>
+      <ScoringInfo />
     </div>
   );
 }

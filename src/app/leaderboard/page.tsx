@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getSessionUser } from "@/lib/auth";
+import { ScoringInfo } from "@/components/ScoringInfo";
 import { getLeaderboard, getResults, resultsPublished } from "@/lib/data";
 import { KNOCKOUT_ROUNDS } from "@/lib/tournament";
 
@@ -99,6 +100,10 @@ export default async function LeaderboardPage() {
           </table>
         </div>
       )}
+
+      <div className="mt-6">
+        <ScoringInfo />
+      </div>
     </div>
   );
 }

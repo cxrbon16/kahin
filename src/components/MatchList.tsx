@@ -20,12 +20,37 @@ const FILTERS: { key: Stage | "all"; label: string }[] = [
   { key: "final", label: "Final" },
 ];
 
-function fmtDay(iso: string) {
-  return new Date(iso + "T00:00:00").toLocaleDateString("tr-TR", {
+const TR_TZ = "Europe/Istanbul";
+
+// Turkey calendar day (YYYY-MM-DD) for an instant — used for grouping, since a
+// late US kickoff falls on the next day in Turkey.
+function trDateKey(iso: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TR_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
+}
+
+// Human day label (e.g. "Pazartesi, 15 Haziran") from a YYYY-MM-DD key.
+function trDayLabel(dateKey: string): string {
+  return new Date(dateKey + "T12:00:00+03:00").toLocaleDateString("tr-TR", {
     weekday: "long",
     day: "numeric",
     month: "long",
+    timeZone: TR_TZ,
   });
+}
+
+// Turkey local time (HH:mm) for an instant.
+function trTime(iso: string): string {
+  return new Intl.DateTimeFormat("tr-TR", {
+    timeZone: TR_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(iso));
 }
 
 function countdown(target: number, now: number): string {
@@ -72,8 +97,9 @@ export function MatchList({ teams, groups }: Props) {
   const byDate = useMemo(() => {
     const map = new Map<string, Match[]>();
     for (const m of filtered) {
-      if (!map.has(m.date)) map.set(m.date, []);
-      map.get(m.date)!.push(m);
+      const key = trDateKey(m.kickoffUTC);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(m);
     }
     return [...map.entries()];
   }, [filtered]);
@@ -127,8 +153,8 @@ export function MatchList({ teams, groups }: Props) {
             </span>
           </div>
           <div className="mt-3 text-center text-sm text-white/70">
-            {fmtDay(nextMatch.date)} · {nextMatch.timeLocal} (yerel) ·{" "}
-            {nextMatch.timeET} ET
+            {trDayLabel(trDateKey(nextMatch.kickoffUTC))} ·{" "}
+            {trTime(nextMatch.kickoffUTC)} TSİ
             <br />
             {nextMatch.venue}, {nextMatch.city}, {nextMatch.country}
           </div>
@@ -157,7 +183,7 @@ export function MatchList({ teams, groups }: Props) {
         {byDate.map(([date, matches]) => (
           <div key={date}>
             <h3 className="mb-2 text-sm font-semibold text-white/80">
-              {fmtDay(date)}
+              {trDayLabel(date)}
             </h3>
             <div className="card divide-y divide-white/10 p-0">
               {matches.map((m) => {
@@ -171,7 +197,7 @@ export function MatchList({ teams, groups }: Props) {
                     }`}
                   >
                     <div className="w-14 shrink-0 text-white/50">
-                      {m.timeLocal}
+                      {trTime(m.kickoffUTC)}
                     </div>
                     <div className="flex flex-1 items-center justify-end gap-2 text-right">
                       <R s={r.a} />

@@ -51,16 +51,18 @@ export async function runSync(): Promise<SyncSummary> {
     fetchMatches(),
   ]);
 
-  // --- Group standings: only emit a group once every team has played 3 games.
+  // --- Group standings: emit the CURRENT (provisional) order as soon as a
+  // group has kicked off, so points accrue live as matches are played. The
+  // order finalises once all three matchdays are complete.
   const groups: Record<string, string[]> = {};
   for (const s of standings) {
     if (s.type !== "TOTAL" || !s.group) continue;
     const code = s.group.replace(/^GROUP_/, "").toUpperCase();
     if (!GROUP_CODES.includes(code as (typeof GROUP_CODES)[number])) continue;
 
-    const complete =
-      s.table.length === 4 && s.table.every((r) => r.playedGames >= 3);
-    if (!complete) continue;
+    const started =
+      s.table.length === 4 && s.table.some((r) => r.playedGames > 0);
+    if (!started) continue;
 
     const ordered = [...s.table]
       .sort((a, b) => a.position - b.position)

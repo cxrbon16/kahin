@@ -1,6 +1,7 @@
 import { createClient } from "./supabase/server";
 import { scorePrediction, type ScoreBreakdown } from "./scoring";
 import { reachedFromRaw } from "./bracket";
+import { SCHEDULE } from "./schedule";
 import {
   emptyReached,
   type KnockoutKey,
@@ -8,6 +9,12 @@ import {
   type RawPrediction,
   type Team,
 } from "./tournament";
+
+// Tournament kickoff = earliest scheduled match. Once this passes, predictions
+// auto-lock for everyone, regardless of the manual admin flag or cron state.
+const TOURNAMENT_START_MS = Math.min(
+  ...SCHEDULE.map((m) => Date.parse(m.kickoffUTC)),
+);
 
 export async function getTeams(): Promise<Team[]> {
   const supabase = createClient();
@@ -37,6 +44,9 @@ export async function getResults(): Promise<Prediction> {
 }
 
 export async function isLocked(): Promise<boolean> {
+  // Auto-lock the moment the tournament kicks off, so no one can edit
+  // predictions after the first match starts.
+  if (Date.now() >= TOURNAMENT_START_MS) return true;
   const supabase = createClient();
   const { data } = await supabase
     .from("results")
