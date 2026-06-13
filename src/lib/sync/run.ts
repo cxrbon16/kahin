@@ -10,6 +10,14 @@ export type SyncSummary = {
   champion: string | null;
   unmatched: string[]; // provider team names we could not map
   message?: string;
+  // Temporary diagnostics: what the provider actually returned.
+  debug?: {
+    groupTables: number; // TOTAL-type group standing tables seen
+    standingRows: number; // total team rows across those tables
+    maxPlayed: number; // highest playedGames on any row
+    matches: number; // total matches returned
+    matchesByStatus: Record<string, number>;
+  };
 };
 
 // Football-data stage -> the knockout round a participating team has "reached".
@@ -50,6 +58,24 @@ export async function runSync(): Promise<SyncSummary> {
     fetchStandings(),
     fetchMatches(),
   ]);
+
+  // --- Diagnostics on the raw provider payload ---
+  const groupTablesSeen = standings.filter(
+    (s) => s.type === "TOTAL" && s.group,
+  );
+  const debug = {
+    groupTables: groupTablesSeen.length,
+    standingRows: groupTablesSeen.reduce((n, s) => n + s.table.length, 0),
+    maxPlayed: groupTablesSeen.reduce(
+      (mx, s) => Math.max(mx, ...s.table.map((r) => r.playedGames), 0),
+      0,
+    ),
+    matches: matches.length,
+    matchesByStatus: matches.reduce<Record<string, number>>((acc, m) => {
+      acc[m.status] = (acc[m.status] ?? 0) + 1;
+      return acc;
+    }, {}),
+  };
 
   // --- Group standings: emit the CURRENT (provisional) order as soon as a
   // group has kicked off, so points accrue live as matches are played. The
@@ -126,5 +152,6 @@ export async function runSync(): Promise<SyncSummary> {
     knockoutCounts,
     champion: knockout.champion[0] ?? null,
     unmatched: [...unmatched].sort(),
+    debug,
   };
 }
