@@ -10,23 +10,25 @@ export type SyncSummary = {
   champion: string | null;
   unmatched: string[]; // provider team names we could not map
   message?: string;
-  // Temporary diagnostics: what the provider actually returned.
-  debug?: {
-    groupTables: number; // TOTAL-type group standing tables seen
-    standingRows: number; // total team rows across those tables
-    maxPlayed: number; // highest playedGames on any row
-    matches: number; // total matches returned
-    matchesByStatus: Record<string, number>;
-    rawTables?: unknown; // raw per-group standings dump
-    groupDiag?: Record<string, unknown>; // per-started-group resolution detail
-  };
 };
+
+// Normalize a provider label to UPPER_SNAKE so we match regardless of whether
+// the API sends "GROUP_A", "Group A", "Last 16", etc.
+function norm(label: string | null | undefined): string {
+  return (label ?? "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+}
+
+// Provider group label -> our group code letter (A..L).
+function groupCode(label: string | null | undefined): string {
+  return norm(label).replace(/^GROUP_/, "");
+}
 
 // Football-data stage -> the knockout round a participating team has "reached".
 const STAGE_TO_ROUND: Record<string, KnockoutKey> = {
   LAST_32: "r32",
   ROUND_OF_32: "r32",
   LAST_16: "r16",
+  ROUND_OF_16: "r16",
   QUARTER_FINALS: "qf",
   QUARTER_FINAL: "qf",
   SEMI_FINALS: "sf",
@@ -61,60 +63,22 @@ export async function runSync(): Promise<SyncSummary> {
     fetchMatches(),
   ]);
 
-  // --- Diagnostics on the raw provider payload ---
-  const groupTablesSeen = standings.filter(
-    (s) => s.type === "TOTAL" && s.group,
-  );
-  const debug = {
-    groupTables: groupTablesSeen.length,
-    standingRows: groupTablesSeen.reduce((n, s) => n + s.table.length, 0),
-    maxPlayed: groupTablesSeen.reduce(
-      (mx, s) => Math.max(mx, ...s.table.map((r) => r.playedGames), 0),
-      0,
-    ),
-    matches: matches.length,
-    matchesByStatus: matches.reduce<Record<string, number>>((acc, m) => {
-      acc[m.status] = (acc[m.status] ?? 0) + 1;
-      return acc;
-    }, {}),
-    // Raw dump of every TOTAL+group standings table, no filtering, so we can
-    // see exactly what the provider sends (group label, normalized code,
-    // played games per row).
-    rawTables: groupTablesSeen.map((s) => ({
-      group: s.group,
-      code: (s.group ?? "").replace(/^GROUP_/, "").toUpperCase(),
-      inCodes: GROUP_CODES.includes(
-        ((s.group ?? "").replace(/^GROUP_/, "").toUpperCase()) as (typeof GROUP_CODES)[number],
-      ),
-      len: s.table.length,
-      played: s.table.map((r) => r.playedGames),
-      teams: s.table.map((r) => r.team?.tla ?? r.team?.name ?? "?"),
-    })),
-  };
-
   // --- Group standings: emit the CURRENT (provisional) order as soon as a
   // group has kicked off, so points accrue live as matches are played. The
   // order finalises once all three matchdays are complete.
   const groups: Record<string, string[]> = {};
-  const groupDiag: Record<string, unknown> = {};
   for (const s of standings) {
     if (s.type !== "TOTAL" || !s.group) continue;
-    const code = s.group.replace(/^GROUP_/, "").toUpperCase();
+    const code = groupCode(s.group);
     if (!GROUP_CODES.includes(code as (typeof GROUP_CODES)[number])) continue;
 
     const started =
       s.table.length === 4 && s.table.some((r) => r.playedGames > 0);
     if (!started) continue;
 
-    const sorted = [...s.table].sort((a, b) => a.position - b.position);
-    const resolvedRows = sorted.map((r) => {
-      const id = resolveOrTrack(r.team);
-      return { tla: r.team.tla, name: r.team.name, id, dbGroup: id ? groupByTeam.get(id) ?? null : null };
-    });
-    groupDiag[code] = resolvedRows;
-
-    const ordered = resolvedRows
-      .map((r) => r.id)
+    const ordered = [...s.table]
+      .sort((a, b) => a.position - b.position)
+      .map((r) => resolveOrTrack(r.team))
       .filter((id): id is string => Boolean(id) && groupByTeam.get(id!) === code);
     if (ordered.length === 4) groups[code] = ordered;
   }
@@ -130,14 +94,15 @@ export async function runSync(): Promise<SyncSummary> {
   };
 
   for (const m of matches) {
-    const round = STAGE_TO_ROUND[m.stage];
+    const stage = norm(m.stage);
+    const round = STAGE_TO_ROUND[stage];
     if (!round) continue;
     for (const t of [m.homeTeam, m.awayTeam]) {
       const id = resolveOrTrack(t);
       if (id) reached[round].add(id);
     }
     // Champion = winner of the final.
-    if (m.stage === "FINAL" && m.status === "FINISHED" && m.score.winner) {
+    if (stage === "FINAL" && m.status === "FINISHED" && m.score.winner) {
       const winner = m.score.winner === "HOME_TEAM" ? m.homeTeam : m.awayTeam;
       const id = resolveOrTrack(winner);
       if (id) reached.champion.add(id);
@@ -174,6 +139,5 @@ export async function runSync(): Promise<SyncSummary> {
     knockoutCounts,
     champion: knockout.champion[0] ?? null,
     unmatched: [...unmatched].sort(),
-    debug: { ...debug, groupDiag },
   };
 }
